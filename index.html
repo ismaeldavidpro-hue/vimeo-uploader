@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Enviar Vídeos — IEL</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #1B2A5E;
+      --yellow: #F5A800;
+      --blue:   #0099CC;
+      --text:   #1B2A5E;
+      --muted:  #6b7a9e;
+      --surface: rgba(255,255,255,0.92);
+      --border:  rgba(27,42,94,0.1);
+      --shadow:  0 4px 32px rgba(27,42,94,0.14), 0 24px 64px rgba(27,42,94,0.1);
+      --input-bg: rgba(27,42,94,0.04);
+      --input-border: rgba(27,42,94,0.15);
+      --item-bg: rgba(27,42,94,0.03);
+      --close-bg: rgba(27,42,94,0.06);
+      --close-hover: rgba(27,42,94,0.12);
+    }
+
+    [data-theme="dark"] {
+      --text:   #e8eaf2;
+      --muted:  #8899bb;
+      --surface: rgba(15,20,45,0.96);
+      --border:  rgba(255,255,255,0.08);
+      --shadow:  0 4px 32px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.4);
+      --input-bg: rgba(255,255,255,0.05);
+      --input-border: rgba(255,255,255,0.12);
+      --item-bg: rgba(255,255,255,0.03);
+      --close-bg: rgba(255,255,255,0.06);
+      --close-hover: rgba(255,255,255,0.12);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Fundo IEL */
+    .bg {
+      position: fixed;
+      inset: 0;
+      background: url('https://raw.githubusercontent.com/ismaeldavidpro-hue/vimeo-uploader/main/Frame%203.png') center/cover no-repeat;
+      transition: filter 0.4s;
+      z-index: 0;
+    }
+
+    [data-theme="dark"] .bg { filter: brightness(0.12) saturate(1.2); }
+    [data-theme="light"] .bg { filter: brightness(1); }
+
+    /* Toggle tema */
+    .theme-toggle {
+      position: fixed;
+      top: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(27,42,94,0.1);
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .toggle-track {
+      width: 40px; height: 22px;
+      background: rgba(27,42,94,0.15);
+      border-radius: 999px;
+      position: relative;
+      border: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+
+    .toggle-knob {
+      width: 16px; height: 16px;
+      background: var(--navy);
+      border-radius: 50%;
+      position: absolute;
+      top: 2px; left: 2px;
+      transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), background 0.3s;
+    }
+
+    [data-theme="dark"] .toggle-knob { transform: translateX(18px); background: var(--yellow); }
+    [data-theme="dark"] .toggle-track { background: rgba(245,168,0,0.15); }
+
+    .icon-sun, .icon-moon { font-size: 0.85rem; transition: opacity 0.3s; }
+    [data-theme="dark"] .icon-sun { opacity: 0.3; }
+    [data-theme="light"] .icon-moon { opacity: 0.3; }
+
+    /* Card */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 2.5rem 2.25rem 2rem;
+      width: 90%;
+      max-width: 420px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Logo */
+    .logo-area { text-align: center; margin-bottom: 1.5rem; }
+
+    .logo-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* Recriação fiel do "i" com detalhe verde-água */
+    .logo-svg { width: 56px; height: auto; }
+
+    .logo-text-block { text-align: left; }
+    .logo-text-block .inst {
+      font-size: 0.65rem;
+      color: var(--muted);
+      line-height: 1.4;
+      transition: color 0.3s;
+    }
+
+    .divider {
+      width: 36px; height: 3px;
+      background: var(--yellow);
+      border-radius: 2px;
+      margin: 1.25rem auto;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 0.35rem;
+      transition: color 0.3s;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+
+    /* Login */
+    #screen-login { display: block; }
+    #screen-upload { display: none; }
+
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 7px;
+    }
+
+    .input-wrap { position: relative; }
+
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      padding: 11px 42px 11px 13px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus { border-color: var(--navy); }
+    [data-theme="dark"] input:focus { border-color: var(--yellow); }
+
+    .toggle-pass {
+      position: absolute;
+      right: 11px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none;
+      cursor: pointer; color: var(--muted);
+      padding: 4px; transition: color 0.2s;
+    }
+    .toggle-pass:hover { color: var(--text); }
+    .toggle-pass svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin-top: 14px;
+      background: var(--navy);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 11px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-primary:hover { background: #253a7a; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    [data-theme="dark"] .btn-primary { background: var(--yellow); color: var(--navy); }
+    [data-theme="dark"] .btn-primary:hover { background: #ffbe1a; }
+
+    .error-msg {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: #c0392b;
+      text-align: center;
+    }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 1.5px dashed var(--input-border);
+      border-radius: 13px;
+      padding: 28px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 14px;
+    }
+
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--navy);
+      background: rgba(27,42,94,0.03);
+    }
+
+    [data-theme="dark"] #drop-zone:hover,
+    [data-theme="dark"] #drop-zone.drag-over {
+      border-color: var(--yellow);
+      background: rgba(245,168,0,0.04);
+    }
+
+    .drop-icon {
+      width: 44px; height: 44px;
+      background: rgba(27,42,94,0.06);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 10px;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    #drop-zone:hover .drop-icon,
+    #drop-zone.drag-over .drop-icon { transform: scale(1.08); }
+
+    .drop-icon svg { width: 20px; height: 20px; stroke: var(--navy); fill: none; stroke-width: 1.8; stroke-linecap: round; }
+    [data-theme="dark"] .drop-icon svg { stroke: var(--yellow); }
+
+    .drop-title { font-size: 0.88rem; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+    .drop-sub   { font-size: 0.73rem; color: var(--muted); margin-bottom: 11px; }
+
+    .ext-list { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+    .ext {
+      font-size: 0.66rem;
+      color: var(--muted);
+      background: var(--item-bg);
+      border: 1px solid var(--border);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    /* Upload cards */
+    #upload-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .ucard {
+      background: var(--item-bg);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .ucard.is-done  { border-color: rgba(0,130,0,0.25); }
+    .ucard.is-error { border-color: rgba(192,57,43,0.25); }
+
+    .ucard-inner { padding: 12px 14px; }
+    .ucard-head  { display: flex; align-items: flex-start; gap: 9px; }
+
+    .ucard-icon { flex-shrink: 0; margin-top: 1px; }
+    .ucard-icon svg { width: 17px; height: 17px; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; }
+    .ucard.is-done  .ucard-icon svg { stroke: #1a8a1a; }
+    .ucard.is-error .ucard-icon svg { stroke: #c0392b; }
+
+    .ucard-info { flex: 1; min-width: 0; }
+    .ucard-name { font-size: 0.82rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .ucard-size { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    .ucard-cancel {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); padding: 3px; border-radius: 5px; flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .ucard-cancel:hover { color: #c0392b; }
+    .ucard-cancel svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    .progress-wrap { margin-top: 9px; }
+
+    .progress-bar-bg {
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.4s ease;
+      background: var(--navy);
+    }
+
+    [data-theme="dark"] .progress-bar { background: var(--yellow); }
+    .ucard.is-done  .progress-bar { background: #1a8a1a; width: 100%; }
+    .ucard.is-error .progress-bar { background: #c0392b; }
+
+    .progress-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 5px;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .link-area { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+
+    .link-box {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 11px;
+    }
+
+    .link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .link-label {
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .btn-copy {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.68rem;
+      font-family: inherit;
+      color: var(--muted);
+      background: var(--item-bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-copy:hover { border-color: var(--navy); color: var(--navy); }
+    [data-theme="dark"] .btn-copy:hover { border-color: var(--yellow); color: var(--yellow); }
+    .btn-copy.copied { color: #1a8a1a; border-color: rgba(26,138,26,0.3); }
+    .btn-copy svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    .link-url {
+      font-size: 0.75rem;
+      color: var(--navy);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-decoration: none;
+      display: block;
+    }
+    [data-theme="dark"] .link-url { color: var(--yellow); }
+    .link-url:hover { text-decoration: underline; }
+
+    .error-inline {
+      margin-top: 7px;
+      padding: 7px 9px;
+      background: rgba(192,57,43,0.06);
+      border: 1px solid rgba(192,57,43,0.2);
+      border-radius: 7px;
+      font-size: 0.75rem;
+      color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Fundo IEL -->
+  <div class="bg"></div>
+
+  <!-- Toggle tema -->
+  <div class="theme-toggle" onclick="toggleTheme()">
+    <span class="icon-sun">☀️</span>
+    <div class="toggle-track"><div class="toggle-knob"></div></div>
+    <span class="icon-moon">🌙</span>
+  </div>
+
+  <!-- Card -->
+  <div class="card">
+
+    <!-- Logo IEL -->
+    <div class="logo-area">
+      <div class="logo-mark">
+        <svg class="logo-svg" viewBox="0 0 120 60" xmlns="http://www.w3.org/2000/svg">
+          <!-- i -->
+          <rect x="2" y="18" width="12" height="38" rx="2" fill="#1B3A8C"/>
+          <polygon points="2,18 14,18 14,8 8,2" fill="#5ECFBE"/>
+          <!-- E -->
+          <rect x="20" y="4" width="12" height="52" rx="2" fill="#1B3A8C"/>
+          <rect x="20" y="4" width="34" height="12" rx="2" fill="#1B3A8C"/>
+          <rect x="20" y="24" width="28" height="10" rx="2" fill="#1B3A8C"/>
+          <rect x="20" y="44" width="34" height="12" rx="2" fill="#1B3A8C"/>
+          <!-- L -->
+          <rect x="62" y="4" width="12" height="52" rx="2" fill="#1B3A8C"/>
+          <rect x="62" y="44" width="34" height="12" rx="2" fill="#1B3A8C"/>
+        </svg>
+        <div class="logo-text-block">
+          <div class="inst">Instituto<br>Euvaldo Lodi</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h1>Enviar vídeos</h1>
+    <p class="subtitle">Upload direto · Qualquer navegador</p>
+
+    <!-- LOGIN -->
+    <div id="screen-login">
+      <label class="field-label" for="input-pass">Senha de acesso</label>
+      <div class="input-wrap">
+        <input type="password" id="input-pass" placeholder="Digite a senha" autocomplete="current-password"/>
+        <button class="toggle-pass" id="toggle-pass" type="button">
+          <svg id="icon-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="icon-eye-off" viewBox="0 0 24 24" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </button>
+      </div>
+      <button class="btn-primary" id="btn-login">Entrar</button>
+      <p class="error-msg" id="login-error" style="display:none"></p>
+    </div>
+
+    <!-- UPLOAD -->
+    <div id="screen-upload">
+      <div id="drop-zone">
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+        </div>
+        <p class="drop-title">Arraste os vídeos aqui</p>
+        <p class="drop-sub">ou clique para selecionar · múltiplos arquivos</p>
+        <div class="ext-list">
+          <span class="ext">MP4</span><span class="ext">MOV</span>
+          <span class="ext">MKV</span><span class="ext">AVI</span><span class="ext">WEBM</span>
+        </div>
+        <input type="file" id="file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.wmv" multiple style="display:none"/>
+      </div>
+      <div id="upload-list"></div>
+    </div>
+
+  </div>
+
+<script>
+const WORKER_URL = 'https://vimeo-upload.ismaeldavidpro.workers.dev'
+let sessionPassword = ''
+
+function toggleTheme() {
+  const html = document.documentElement
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'
+}
+
+function formatBytes(b) {
+  if (b === 0) return '0 B'
+  const k = 1024, s = ['B','KB','MB','GB']
+  const i = Math.floor(Math.log(b) / Math.log(k))
+  return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i]
+}
+
+function svgCheck()  { return `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>` }
+function svgCopy()   { return `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>` }
+function svgFile()   { return `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>` }
+function svgDone()   { return `<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` }
+function svgAlert()  { return `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` }
+function svgX()      { return `<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>` }
+
+// Login
+document.getElementById('toggle-pass').addEventListener('click', () => {
+  const inp = document.getElementById('input-pass')
+  const isPass = inp.type === 'password'
+  inp.type = isPass ? 'text' : 'password'
+  document.getElementById('icon-eye').style.display = isPass ? 'none' : ''
+  document.getElementById('icon-eye-off').style.display = isPass ? '' : 'none'
+})
+
+document.getElementById('input-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-login').click()
+})
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const pass = document.getElementById('input-pass').value.trim()
+  const errEl = document.getElementById('login-error')
+  const btn = document.getElementById('btn-login')
+  if (!pass) return
+  btn.disabled = true
+  btn.textContent = 'Verificando...'
+  errEl.style.display = 'none'
+  try {
+    const res = await fetch(WORKER_URL + '/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass, fileName: 'test', fileSize: 0 }),
+    })
+    if (res.status === 401) {
+      errEl.textContent = 'Senha incorreta. Tente novamente.'
+      errEl.style.display = 'block'
+    } else {
+      sessionPassword = pass
+      document.getElementById('screen-login').style.display = 'none'
+      document.getElementById('screen-upload').style.display = 'block'
+    }
+  } catch {
+    errEl.textContent = 'Erro de conexão. Verifique sua internet.'
+    errEl.style.display = 'block'
+  }
+  btn.disabled = false
+  btn.textContent = 'Entrar'
+})
+
+// Drop zone
+const dropZone = document.getElementById('drop-zone')
+const fileInput = document.getElementById('file-input')
+
+dropZone.addEventListener('click', () => fileInput.click())
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over') })
+dropZone.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over') })
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); processFiles(e.dataTransfer.files) })
+fileInput.addEventListener('change', e => { processFiles(e.target.files); fileInput.value = '' })
+
+function processFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('video/') && !/\.(mp4|mov|avi|mkv|webm|wmv|m4v|3gp)$/i.test(file.name)) {
+      alert(`"${file.name}" não parece ser um vídeo.`); return
+    }
+    if (file.size > 2_000_000_000) {
+      alert(`"${file.name}" é maior que 2GB.`); return
+    }
+    startUpload(file)
+  })
+}
+
+function startUpload(file) {
+  const id = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2)
+  const list = document.getElementById('upload-list')
+  const card = document.createElement('div')
+  card.className = 'ucard'
+  card.id = id
+  card.innerHTML = `
+    <div class="ucard-inner">
+      <div class="ucard-head">
+        <div class="ucard-icon">${svgFile()}</div>
+        <div class="ucard-info">
+          <div class="ucard-name" title="${file.name}">${file.name}</div>
+          <div class="ucard-size">${formatBytes(file.size)}</div>
+        </div>
+        <button class="ucard-cancel" onclick="cancelUpload('${id}')">${svgX()}</button>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar-bg"><div class="progress-bar" id="${id}-bar"></div></div>
+        <div class="progress-stats">
+          <span id="${id}-status">Preparando...</span>
+          <span id="${id}-speed"></span>
+        </div>
+      </div>
+    </div>`
+  list.prepend(card)
+
+  fetch(WORKER_URL + '/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: sessionPassword, fileName: file.name, fileSize: file.size }),
+  })
+  .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'Erro ' + r.status) }); return r.json() })
+  .then(data => {
+    setStatus(id, 'Enviando...')
+    const upload = new tus.Upload(file, {
+      uploadUrl: data.uploadUrl,
+      chunkSize: 50 * 1024 * 1024,
+      retryDelays: [1000, 2000, 4000, 8000, 16000],
+      headers: { Accept: 'application/vnd.vimeo.*+json;version=3.4' },
+      metadata: { filename: file.name, filetype: file.type },
+      onProgress(uploaded, total) {
+        const pct = Math.min(Math.round(uploaded / total * 100), 99)
+        document.getElementById(id + '-bar').style.width = pct + '%'
+        setStatus(id, 'Enviando... ' + pct + '%')
+      },
+      onSuccess() {
+        document.getElementById(id + '-bar').style.width = '100%'
+        setStatus(id, 'Processando no Vimeo...')
+        setTimeout(() => showLinks(id, data), 2000)
+      },
+      onError(err) { showError(id, 'Erro no upload. ' + (err.message || '') + ' — tente novamente.') },
+    })
+    window['_tus_' + id] = upload
+    upload.start()
+  })
+  .catch(err => showError(id, err.message || 'Não foi possível iniciar o upload.'))
+}
+
+function setStatus(id, text) {
+  const el = document.getElementById(id + '-status')
+  if (el) el.textContent = text
+}
+
+function showLinks(id, data) {
+  const card = document.getElementById(id)
+  if (!card) return
+  card.classList.add('is-done')
+  card.querySelector('.ucard-icon').innerHTML = svgDone()
+  const cancelBtn = card.querySelector('.ucard-cancel')
+  if (cancelBtn) cancelBtn.remove()
+  setStatus(id, '✓ Concluído')
+  document.getElementById(id + '-speed').textContent = ''
+  const inner = card.querySelector('.ucard-inner')
+  const linkArea = document.createElement('div')
+  linkArea.className = 'link-area'
+  linkArea.innerHTML = `
+    <div class="link-box">
+      <div class="link-row">
+        <span class="link-label">Link do vídeo</span>
+        <button class="btn-copy" onclick="copyText(this, '${data.vimeoLink}')">${svgCopy()} Copiar</button>
+      </div>
+      <a class="link-url" href="${data.vimeoLink}" target="_blank" rel="noopener">${data.vimeoLink}</a>
+    </div>
+    <div class="link-box">
+      <div class="link-row">
+        <span class="link-label">Link embed</span>
+        <button class="btn-copy" onclick="copyText(this, '${data.embedUrl}')">${svgCopy()} Copiar</button>
+      </div>
+      <span class="link-url" style="opacity:0.6">${data.embedUrl}</span>
+    </div>`
+  inner.appendChild(linkArea)
+}
+
+function showError(id, msg) {
+  const card = document.getElementById(id)
+  if (!card) return
+  card.classList.add('is-error')
+  card.querySelector('.ucard-icon').innerHTML = svgAlert()
+  setStatus(id, 'Erro')
+  const inner = card.querySelector('.ucard-inner')
+  const errEl = document.createElement('div')
+  errEl.className = 'error-inline'
+  errEl.textContent = msg
+  inner.appendChild(errEl)
+}
+
+function cancelUpload(id) {
+  const upload = window['_tus_' + id]
+  if (upload) { upload.abort(); delete window['_tus_' + id] }
+  const card = document.getElementById(id)
+  if (card) card.remove()
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied')
+    btn.innerHTML = svgCheck() + ' Copiado!'
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = svgCopy() + ' Copiar' }, 2500)
+  }).catch(() => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.cssText = 'position:fixed;opacity:0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    btn.textContent = 'Copiado!'
+    setTimeout(() => btn.innerHTML = svgCopy() + ' Copiar', 2000)
+  })
+}
+</script>
+</body>
+</html>
