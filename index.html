@@ -656,17 +656,9 @@ function showLinks(id, data) {
         <button class="btn-copy" onclick="copyText(this, '${data.vimeoLink}')">${svgCopy()} Copiar</button>
       </div>
       <a class="link-url" href="${data.vimeoLink}" target="_blank" rel="noopener">${data.vimeoLink}</a>
-    </div>
-    <div class="link-box">
-      <div class="link-row">
-        <span class="link-label">Link embed</span>
-        <button class="btn-copy" onclick="copyText(this, '${data.embedUrl}')">${svgCopy()} Copiar</button>
-      </div>
-      <span class="link-url" style="opacity:0.6">${data.embedUrl}</span>
     </div>`
   inner.appendChild(linkArea)
 }
-
 function showError(id, msg) {
   const card = document.getElementById(id)
   if (!card) return
