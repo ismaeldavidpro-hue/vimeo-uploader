@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Enviar Vídeos — IEL</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -21,8 +20,6 @@
       --input-bg: rgba(27,42,94,0.04);
       --input-border: rgba(27,42,94,0.15);
       --item-bg: rgba(27,42,94,0.03);
-      --close-bg: rgba(27,42,94,0.06);
-      --close-hover: rgba(27,42,94,0.12);
     }
 
     [data-theme="dark"] {
@@ -34,8 +31,6 @@
       --input-bg: rgba(255,255,255,0.05);
       --input-border: rgba(255,255,255,0.12);
       --item-bg: rgba(255,255,255,0.03);
-      --close-bg: rgba(255,255,255,0.06);
-      --close-hover: rgba(255,255,255,0.12);
     }
 
     html, body { height: 100%; }
@@ -50,7 +45,6 @@
       overflow: hidden;
     }
 
-    /* Fundo IEL */
     .bg {
       position: fixed;
       inset: 0;
@@ -62,7 +56,6 @@
     [data-theme="dark"] .bg { filter: brightness(0.12) saturate(1.2); }
     [data-theme="light"] .bg { filter: brightness(1); }
 
-    /* Toggle tema */
     .theme-toggle {
       position: fixed;
       top: 1.25rem;
@@ -108,7 +101,6 @@
     [data-theme="dark"] .icon-sun { opacity: 0.3; }
     [data-theme="light"] .icon-moon { opacity: 0.3; }
 
-    /* Card */
     .card {
       position: relative;
       z-index: 1;
@@ -130,25 +122,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* Logo */
     .logo-area { text-align: center; margin-bottom: 1.5rem; }
-
-    .logo-mark {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6rem;
-    }
-
-    /* Recriação fiel do "i" com detalhe verde-água */
-    .logo-svg { width: 56px; height: auto; }
-
-    .logo-text-block { text-align: left; }
-    .logo-text-block .inst {
-      font-size: 0.65rem;
-      color: var(--muted);
-      line-height: 1.4;
-      transition: color 0.3s;
-    }
 
     .divider {
       width: 36px; height: 3px;
@@ -173,7 +147,6 @@
       margin-bottom: 1.75rem;
     }
 
-    /* Login */
     #screen-login { display: block; }
     #screen-upload { display: none; }
 
@@ -247,7 +220,6 @@
       text-align: center;
     }
 
-    /* Drop zone */
     #drop-zone {
       border: 1.5px dashed var(--input-border);
       border-radius: 13px;
@@ -300,7 +272,6 @@
       border-radius: 4px;
     }
 
-    /* Upload cards */
     #upload-list { display: flex; flex-direction: column; gap: 8px; }
 
     .ucard {
@@ -431,23 +402,20 @@
 </head>
 <body>
 
-  <!-- Fundo IEL -->
   <div class="bg"></div>
 
-  <!-- Toggle tema -->
   <div class="theme-toggle" onclick="toggleTheme()">
     <span class="icon-sun">☀️</span>
     <div class="toggle-track"><div class="toggle-knob"></div></div>
     <span class="icon-moon">🌙</span>
   </div>
 
-  <!-- Card -->
   <div class="card">
 
-    <!-- Logo IEL -->
-   <div class="logo-area">
-  <img src="https://raw.githubusercontent.com/ismaeldavidpro-hue/vimeo-uploader/main/marca_IEL_2024_completa%20colorida.png" alt="IEL" style="height:38px;width:auto;"/>
-</div>
+    <div class="logo-area">
+      <img src="https://raw.githubusercontent.com/ismaeldavidpro-hue/vimeo-uploader/main/marca_IEL_2024_completa%20colorida.png" alt="IEL" style="height:38px;width:auto;"/>
+    </div>
+
     <div class="divider"></div>
 
     <h1>Enviar vídeos</h1>
@@ -489,6 +457,9 @@
 <script>
 const WORKER_URL = 'https://vimeo-upload.ismaeldavidpro.workers.dev'
 let sessionPassword = ''
+
+// Tamanho de cada chunk: 5MB (múltiplo de 256KB exigido pelo Google)
+const CHUNK_SIZE = 5 * 1024 * 1024
 
 function toggleTheme() {
   const html = document.documentElement
@@ -574,6 +545,9 @@ function processFiles(files) {
   })
 }
 
+// Mapa de uploads ativos para cancelamento
+const activeUploads = {}
+
 function startUpload(file) {
   const id = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2)
   const list = document.getElementById('upload-list')
@@ -600,6 +574,9 @@ function startUpload(file) {
     </div>`
   list.prepend(card)
 
+  activeUploads[id] = { cancelled: false }
+
+  // 1. Solicita URL de upload resumível ao Worker
   fetch(WORKER_URL + '/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -607,29 +584,85 @@ function startUpload(file) {
   })
   .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'Erro ' + r.status) }); return r.json() })
   .then(data => {
+    if (activeUploads[id]?.cancelled) return
     setStatus(id, 'Enviando...')
-    const upload = new tus.Upload(file, {
-      uploadUrl: data.uploadUrl,
-      chunkSize: 50 * 1024 * 1024,
-      retryDelays: [1000, 2000, 4000, 8000, 16000],
-      headers: { Accept: 'application/vnd.vimeo.*+json;version=3.4' },
-      metadata: { filename: file.name, filetype: file.type },
-      onProgress(uploaded, total) {
-        const pct = Math.min(Math.round(uploaded / total * 100), 99)
-        document.getElementById(id + '-bar').style.width = pct + '%'
-        setStatus(id, 'Enviando... ' + pct + '%')
-      },
-      onSuccess() {
-        document.getElementById(id + '-bar').style.width = '100%'
-        setStatus(id, 'Processando no Vimeo...')
-        setTimeout(() => showLinks(id, data), 2000)
-      },
-      onError(err) { showError(id, 'Erro no upload. ' + (err.message || '') + ' — tente novamente.') },
-    })
-    window['_tus_' + id] = upload
-    upload.start()
+    // 2. Faz upload resumível em chunks direto para o Google
+    uploadResumivel(id, file, data.uploadUrl, data.folderId)
   })
   .catch(err => showError(id, err.message || 'Não foi possível iniciar o upload.'))
+}
+
+async function uploadResumivel(id, file, uploadUrl, folderId) {
+  const totalSize = file.size
+  let offset = 0
+  let fileId = null
+
+  // Verifica se o upload já tinha progresso (retomada)
+  try {
+    const statusRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Range': `bytes */${totalSize}`,
+        'Content-Length': '0'
+      }
+    })
+    if (statusRes.status === 308) {
+      const range = statusRes.headers.get('Range')
+      if (range) offset = parseInt(range.split('-')[1]) + 1
+    } else if (statusRes.status === 200 || statusRes.status === 201) {
+      const data = await statusRes.json()
+      fileId = data.id
+    }
+  } catch {}
+
+  // Envia chunks
+  while (offset < totalSize) {
+    if (activeUploads[id]?.cancelled) return
+
+    const end = Math.min(offset + CHUNK_SIZE, totalSize)
+    const chunk = file.slice(offset, end)
+
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Range': `bytes ${offset}-${end - 1}/${totalSize}`,
+        'Content-Length': String(end - offset),
+        'Content-Type': file.type || 'video/mp4'
+      },
+      body: chunk
+    })
+
+    if (res.status === 308) {
+      // Chunk aceito, continua
+      const range = res.headers.get('Range')
+      offset = range ? parseInt(range.split('-')[1]) + 1 : end
+
+      const pct = Math.min(Math.round(offset / totalSize * 100), 99)
+      document.getElementById(id + '-bar').style.width = pct + '%'
+      setStatus(id, `Enviando... ${pct}%`)
+
+    } else if (res.status === 200 || res.status === 201) {
+      // Upload completo
+      const data = await res.json()
+      fileId = data.id
+      break
+
+    } else {
+      throw new Error(`Erro no chunk: ${res.status}`)
+    }
+  }
+
+  if (!fileId) {
+    showError(id, 'Upload incompleto — tente novamente.')
+    return
+  }
+
+  // Monta o link do Google Drive
+  const driveLink = `https://drive.google.com/file/d/${fileId}/view`
+  const downloadLink = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`
+
+  document.getElementById(id + '-bar').style.width = '100%'
+  showLinks(id, driveLink, downloadLink)
 }
 
 function setStatus(id, text) {
@@ -637,7 +670,7 @@ function setStatus(id, text) {
   if (el) el.textContent = text
 }
 
-function showLinks(id, data) {
+function showLinks(id, driveLink, downloadLink) {
   const card = document.getElementById(id)
   if (!card) return
   card.classList.add('is-done')
@@ -653,12 +686,13 @@ function showLinks(id, data) {
     <div class="link-box">
       <div class="link-row">
         <span class="link-label">Link do vídeo</span>
-        <button class="btn-copy" onclick="copyText(this, '${data.vimeoLink}')">${svgCopy()} Copiar</button>
+        <button class="btn-copy" onclick="copyText(this, '${downloadLink}')">${svgCopy()} Copiar</button>
       </div>
-      <a class="link-url" href="${data.vimeoLink}" target="_blank" rel="noopener">${data.vimeoLink}</a>
+      <a class="link-url" href="${driveLink}" target="_blank" rel="noopener">${driveLink}</a>
     </div>`
   inner.appendChild(linkArea)
 }
+
 function showError(id, msg) {
   const card = document.getElementById(id)
   if (!card) return
@@ -673,8 +707,7 @@ function showError(id, msg) {
 }
 
 function cancelUpload(id) {
-  const upload = window['_tus_' + id]
-  if (upload) { upload.abort(); delete window['_tus_' + id] }
+  if (activeUploads[id]) activeUploads[id].cancelled = true
   const card = document.getElementById(id)
   if (card) card.remove()
 }
